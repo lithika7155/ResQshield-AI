@@ -16,6 +16,7 @@ import PlanAnalysisPage from './PlanAnalysisPage';
 import StressTestPage from './StressTestPage';
 import FailureAnalysisPage from './FailureAnalysisPage';
 import AlternativePlanPage from './AlternativePlanPage';
+import HumanApprovalPage from './HumanApprovalPage';
 
 export default function ResQShieldDashboard() {
   const [activeNav, setActiveNav] = useState('Home');
@@ -99,8 +100,14 @@ export default function ResQShieldDashboard() {
           ) : activeNav === 'Alternative Plan' ? (
             <AlternativePlanPage
               planData={currentPlanData}
-              onNavigateToApproval={() => setShowApprovalModal(true)}
+              onNavigateToApproval={() => setActiveNav('Human Approval')}
               onBackToFailureAnalysis={() => setActiveNav('Failure Analysis')}
+              onBackToDashboard={() => setActiveNav('Home')}
+            />
+          ) : activeNav === 'Human Approval' ? (
+            <HumanApprovalPage
+              planData={currentPlanData}
+              onBackToAlternativePlan={() => setActiveNav('Alternative Plan')}
               onBackToDashboard={() => setActiveNav('Home')}
             />
           ) : (

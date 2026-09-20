@@ -12,7 +12,8 @@ import {
   Users, 
   Settings,
   AlertTriangle,
-  GitFork
+  GitFork,
+  UserCheck
 } from 'lucide-react';
 
 export default function Sidebar({ activeNav = "Home", setActiveNav }) {
@@ -25,6 +26,7 @@ export default function Sidebar({ activeNav = "Home", setActiveNav }) {
     { id: "Stress Testing", label: "Stress Testing", icon: Zap },
     { id: "Failure Analysis", label: "Failure Analysis", icon: AlertOctagon },
     { id: "Alternative Plan", label: "Alternative Plan", icon: GitFork },
+    { id: "Human Approval", label: "Human Approval", icon: UserCheck },
     { id: "Maps & GIS", label: "Maps & GIS", icon: Map },
     { id: "Reports", label: "Reports", icon: FileText },
     { id: "Team", label: "Team", icon: Users },
