@@ -60,7 +60,7 @@ const HAZARDS_LIST = [
   'Power Failure'
 ];
 
-export default function RescuePlanningPage({ onBack, onRunStressTest, onExecutePlan }) {
+export default function RescuePlanningPage({ onBack, onRunStressTest, onExecutePlan, onPlanGenerated }) {
   // Plan metadata
   const [planId, setPlanId] = useState('RP-2026-CHN-094');
   const [currentTime, setCurrentTime] = useState('');
@@ -244,7 +244,34 @@ export default function RescuePlanningPage({ onBack, onRunStressTest, onExecuteP
     // Complete and show plan
     setTimeout(() => {
       setIsGenerating(false);
-      setIsPlanGenerated(true);
+      const generatedPlan = {
+        planId,
+        disasterType,
+        severity,
+        disasterZone,
+        peopleAffected,
+        priority,
+        rescueTeams,
+        vehicles,
+        dronesRobots,
+        fuelBattery,
+        medicalSupplies,
+        resourceCommStatus,
+        roadCondition,
+        weatherCondition,
+        commStatus,
+        activeHazards,
+        survivorLocation,
+        estimatedCount,
+        criticalPatients,
+        evacuationPriority,
+        nearestSafeZone
+      };
+      if (onPlanGenerated) {
+        onPlanGenerated(generatedPlan);
+      } else {
+        setIsPlanGenerated(true);
+      }
     }, 4900);
   };
 

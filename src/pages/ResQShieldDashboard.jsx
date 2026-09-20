@@ -12,11 +12,14 @@ import StressTestingCard from '../components/dashboard/StressTestingCard';
 import StressTestFailureModal from '../components/modals/StressTestFailureModal';
 import HumanApprovalModal from '../components/modals/HumanApprovalModal';
 import RescuePlanningPage from './RescuePlanningPage';
+import PlanAnalysisPage from './PlanAnalysisPage';
+import StressTestPage from './StressTestPage';
 
 export default function ResQShieldDashboard() {
   const [activeNav, setActiveNav] = useState('Home');
   const [activeMapTab, setActiveMapTab] = useState('Live Map');
   const [selectedIncident, setSelectedIncident] = useState(null);
+  const [currentPlanData, setCurrentPlanData] = useState(null);
 
   const [showStressModal, setShowStressModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -45,15 +48,6 @@ export default function ResQShieldDashboard() {
     setActiveNav('Home');
   };
 
-  // If user clicks Stress Testing in sidebar, open the simulation modal
-  React.useEffect(() => {
-    if (activeNav === 'Stress Testing') {
-      setShowStressModal(true);
-      setActiveMapTab('Simulation');
-      setActiveNav('Home');
-    }
-  }, [activeNav]);
-
   return (
     <div className="h-screen flex flex-col bg-[#080A0F] text-slate-100 overflow-hidden font-sans select-none">
       
@@ -72,8 +66,25 @@ export default function ResQShieldDashboard() {
           {activeNav === 'Rescue Planning' ? (
             <RescuePlanningPage 
               onBack={() => setActiveNav('Home')}
-              onRunStressTest={handleRunSimulation}
+              onRunStressTest={() => setActiveNav('Stress Testing')}
               onExecutePlan={handleExecutePlan}
+              onPlanGenerated={(plan) => {
+                setCurrentPlanData(plan);
+                setActiveNav('Plan Analysis');
+              }}
+            />
+          ) : activeNav === 'Plan Analysis' ? (
+            <PlanAnalysisPage
+              planData={currentPlanData}
+              onRunStressTest={() => setActiveNav('Stress Testing')}
+              onEditPlan={() => setActiveNav('Rescue Planning')}
+              onBack={() => setActiveNav('Home')}
+            />
+          ) : activeNav === 'Stress Testing' ? (
+            <StressTestPage
+              planData={currentPlanData}
+              onNavigateToAlternative={() => setShowStressModal(true)}
+              onBack={() => setActiveNav('Plan Analysis')}
             />
           ) : (
             <>
