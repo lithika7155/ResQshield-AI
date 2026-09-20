@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useMission } from '../context/MissionContext';
 import { 
   ShieldAlert, 
   MapPin, 
@@ -61,6 +62,7 @@ const HAZARDS_LIST = [
 ];
 
 export default function RescuePlanningPage({ onBack, onRunStressTest, onExecutePlan, onPlanGenerated }) {
+  const { createPlan } = useMission();
   // Plan metadata
   const [planId, setPlanId] = useState('RP-2026-CHN-094');
   const [currentTime, setCurrentTime] = useState('');
@@ -242,7 +244,7 @@ export default function RescuePlanningPage({ onBack, onRunStressTest, onExecuteP
     });
 
     // Complete and show plan
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsGenerating(false);
       const generatedPlan = {
         planId,
@@ -267,6 +269,12 @@ export default function RescuePlanningPage({ onBack, onRunStressTest, onExecuteP
         evacuationPriority,
         nearestSafeZone
       };
+      // Call context createPlan so the real API is invoked and state is updated
+      try {
+        await createPlan(generatedPlan);
+      } catch (err) {
+        console.warn('[RescuePlanningPage] createPlan error (non-fatal):', err);
+      }
       if (onPlanGenerated) {
         onPlanGenerated(generatedPlan);
       } else {

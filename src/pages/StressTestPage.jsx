@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useMission } from '../context/MissionContext';
 import { 
   Zap, 
   ShieldAlert, 
@@ -148,16 +149,18 @@ export default function StressTestPage({
   onNavigateToFailureAnalysis,
   onBack 
 }) {
-  // Baseline plan data
+  const { apiPlanId, apiStressData, runStressTest, currentPlan } = useMission();
+
+  // Baseline plan data - incorporates active plan from context when available
   const baseline = {
-    planId: planData?.planId || "RP-2026-CHN-094",
-    route: "North Arterial via Kathipara High-Level Ramp (8.6 km)",
-    estimatedTime: "42 min",
-    riskScore: 68,
-    reliability: 82,
-    rescueTeams: planData?.rescueTeams || "NDRF 04 Battalion (18 Specialists)",
+    planId: apiPlanId || planData?.planId || currentPlan?.id || "RP-2026-CHN-094",
+    route: currentPlan?.name || "North Arterial via Kathipara High-Level Ramp (8.6 km)",
+    estimatedTime: currentPlan?.metrics?.estimatedTime ? `${currentPlan.metrics.estimatedTime} min` : "42 min",
+    riskScore: currentPlan?.metrics?.riskScore ?? 68,
+    reliability: currentPlan?.metrics?.reliabilityScore ?? 82,
+    rescueTeams: planData?.rescueTeams || currentPlan?.mission?.teamCapacity || "NDRF 04 Battalion (18 Specialists)",
     vehicles: planData?.vehicles || "2 Amphibious UGVs, 4 RIB Boats",
-    survivorCount: planData?.estimatedCount ? `${planData.estimatedCount} Civilians` : "340 Civilians",
+    survivorCount: planData?.estimatedCount ? `${planData.estimatedCount} Civilians` : (currentPlan?.mission?.survivorCount ? `${currentPlan.mission.survivorCount} Civilians` : "340 Civilians"),
     criticalPatients: planData?.criticalPatients || 18,
     status: "READY FOR SIMULATION"
   };
@@ -177,6 +180,38 @@ export default function StressTestPage({
   // Ref to scroll to results
   const resultsRef = useRef(null);
 
+  // Computed API-driven metrics with graceful fallbacks
+  const displayRiskOrig = apiStressData?.original_risk ?? baseline.riskScore;
+  const displayRiskSim = apiStressData?.simulated_risk ?? 91;
+  const displayRiskDelta = displayRiskSim - displayRiskOrig;
+
+  const displayRelOrig = apiStressData?.original_reliability ?? baseline.reliability;
+  const displayRelSim = apiStressData?.simulated_reliability ?? 54;
+  const displayRelDelta = displayRelOrig - displayRelSim;
+
+  const displayTimeOrig = apiStressData?.original_time ?? 42;
+  const displayTimeSim = apiStressData?.simulated_time ?? 67;
+  const displayTimeDelta = displayTimeSim - displayTimeOrig;
+
+  const displayTestId = apiStressData?.stress_test_id || "ST-001";
+  const displayFailureStatus = apiStressData?.status || "FAILED";
+
+  const displayFailureChain = apiStressData?.failure_chain?.length
+    ? apiStressData.failure_chain.map((item, idx) => {
+        const fallback = FAILURE_CHAIN[idx] || {};
+        return {
+          step: idx + 1,
+          title: typeof item === 'string' ? item.toUpperCase() : (item.title || fallback.title || `STAGE 0${idx+1}`),
+          subtitle: fallback.subtitle || `Cascading impact stage ${idx + 1} observed during stress simulation`,
+          metric: fallback.metric || (idx === 0 ? "Passability: 0%" : idx === apiStressData.failure_chain.length - 1 ? `Risk: ${displayRiskSim} / 100` : "Impact Detected"),
+          severity: fallback.severity || "critical"
+        };
+      })
+    : FAILURE_CHAIN;
+
+  const displayResourceImpact = apiStressData?.resource_impact || 
+    "Navigating the muddy bypass demanded maximum torque from UGV thrusters, leaving only 4% reserve.";
+
   const toggleScenario = (id) => {
     setSelectedScenarios(prev => {
       if (prev.includes(id)) {
@@ -193,6 +228,11 @@ export default function StressTestPage({
     setSimulationStep(0);
     setTestCompleted(false);
 
+    // Call real FastAPI backend in background
+    const apiCallPromise = runStressTest(selectedScenarios).catch(err => {
+      console.warn('[ResQShield API] Stress test call warning:', err.message);
+    });
+
     // Run through 6 steps
     const stepDelays = [400, 1100, 1800, 2500, 3200, 3900];
     stepDelays.forEach((delay, idx) => {
@@ -201,8 +241,9 @@ export default function StressTestPage({
       }, delay);
     });
 
-    // Complete simulation
-    setTimeout(() => {
+    // Complete simulation after animations and API finish
+    setTimeout(async () => {
+      await apiCallPromise;
       setIsSimulating(false);
       setTestCompleted(true);
       setTimeout(() => {
@@ -597,9 +638,9 @@ export default function StressTestPage({
 
                 <div>
                   <div className="flex items-center gap-2 text-xs font-mono text-crimson-400 font-bold uppercase tracking-wider mb-1">
-                    <span>STRESS TEST RESULT</span>
+                    <span>STRESS TEST RESULT (#{displayTestId})</span>
                     <span className="text-slate-600">•</span>
-                    <span>CONFIDENCE COLLAPSE DETECTED</span>
+                    <span>{displayFailureStatus}</span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight text-crimson-200">
                     PLAN FAILED UNDER SIMULATION
@@ -616,33 +657,33 @@ export default function StressTestPage({
                 <div className="p-3 rounded-xl bg-black/60 border border-crimson-500/40 shadow-sm">
                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Risk Score</div>
                   <div className="text-lg sm:text-2xl font-black text-crimson-400 flex items-center justify-center gap-1">
-                    <span className="text-slate-400 text-sm font-normal line-through">68</span>
+                    <span className="text-slate-400 text-sm font-normal line-through">{displayRiskOrig}</span>
                     <ArrowRight className="w-3.5 h-3.5 text-crimson-400" />
-                    <span>91</span>
+                    <span>{displayRiskSim}</span>
                   </div>
-                  <div className="text-[9px] text-crimson-300 font-bold mt-0.5">+23 pts (Critical)</div>
+                  <div className="text-[9px] text-crimson-300 font-bold mt-0.5">+{displayRiskDelta} pts (Critical)</div>
                 </div>
 
                 {/* Reliability Delta */}
                 <div className="p-3 rounded-xl bg-black/60 border border-crimson-500/40 shadow-sm">
                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Reliability</div>
                   <div className="text-lg sm:text-2xl font-black text-amber-400 flex items-center justify-center gap-1">
-                    <span className="text-slate-400 text-sm font-normal line-through">82%</span>
+                    <span className="text-slate-400 text-sm font-normal line-through">{displayRelOrig}%</span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
-                    <span>54%</span>
+                    <span>{displayRelSim}%</span>
                   </div>
-                  <div className="text-[9px] text-amber-300 font-bold mt-0.5">-28% Collapse</div>
+                  <div className="text-[9px] text-amber-300 font-bold mt-0.5">-{displayRelDelta}% Collapse</div>
                 </div>
 
                 {/* Time Delta */}
                 <div className="p-3 rounded-xl bg-black/60 border border-crimson-500/40 shadow-sm">
                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Est. Time</div>
                   <div className="text-lg sm:text-2xl font-black text-crimson-400 flex items-center justify-center gap-1">
-                    <span className="text-slate-400 text-sm font-normal line-through">42m</span>
+                    <span className="text-slate-400 text-sm font-normal line-through">{displayTimeOrig}m</span>
                     <ArrowRight className="w-3.5 h-3.5 text-crimson-400" />
-                    <span>67m</span>
+                    <span>{displayTimeSim}m</span>
                   </div>
-                  <div className="text-[9px] text-crimson-300 font-bold mt-0.5">+25 min Delay</div>
+                  <div className="text-[9px] text-crimson-300 font-bold mt-0.5">+{displayTimeDelta} min Delay</div>
                 </div>
               </div>
 
@@ -742,7 +783,7 @@ export default function StressTestPage({
               
               <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 block">TRAVEL TIME</span>
-                <div className="text-crimson-400 font-bold text-sm">+25 min (67m total)</div>
+                <div className="text-crimson-400 font-bold text-sm">+{displayTimeDelta} min ({displayTimeSim}m total)</div>
                 <div className="w-full bg-black/60 h-1.5 rounded-full overflow-hidden">
                   <div className="h-full bg-crimson-500" style={{ width: '92%' }} />
                 </div>
@@ -750,17 +791,17 @@ export default function StressTestPage({
 
               <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 block">RISK EXPONENTIAL</span>
-                <div className="text-crimson-400 font-bold text-sm">91 / 100</div>
+                <div className="text-crimson-400 font-bold text-sm">{displayRiskSim} / 100</div>
                 <div className="w-full bg-black/60 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-crimson-500" style={{ width: '91%' }} />
+                  <div className="h-full bg-crimson-500" style={{ width: `${Math.min(displayRiskSim, 100)}%` }} />
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 block">RELIABILITY DROP</span>
-                <div className="text-amber-400 font-bold text-sm">54% (-28%)</div>
+                <div className="text-amber-400 font-bold text-sm">{displayRelSim}% (-{displayRelDelta}%)</div>
                 <div className="w-full bg-black/60 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500" style={{ width: '54%' }} />
+                  <div className="h-full bg-amber-500" style={{ width: `${Math.min(displayRelSim, 100)}%` }} />
                 </div>
               </div>
 
@@ -795,13 +836,13 @@ export default function StressTestPage({
                 </h3>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-crimson-950/80 border border-crimson-500/40 text-crimson-300">
-                6 PROPAGATION STAGES
+                {displayFailureChain.length} PROPAGATION STAGES
               </span>
             </div>
 
             {/* Vertical Flow Diagram with Connecting Arrows */}
             <div className="space-y-2 max-w-4xl mx-auto">
-              {FAILURE_CHAIN.map((item, idx) => (
+              {displayFailureChain.map((item, idx) => (
                 <React.Fragment key={item.step}>
                   <div className="p-3 rounded-xl bg-black/50 border border-crimson-500/30 flex items-center justify-between gap-4 font-mono shadow-sm hover:border-crimson-500/60 transition-colors">
                     <div className="flex items-center gap-3">
@@ -828,7 +869,7 @@ export default function StressTestPage({
                     </div>
                   </div>
 
-                  {idx < FAILURE_CHAIN.length - 1 && (
+                  {idx < displayFailureChain.length - 1 && (
                     <div className="flex justify-center py-0.5">
                       <ArrowDown className="w-4 h-4 text-crimson-500 animate-bounce" />
                     </div>
@@ -875,10 +916,10 @@ export default function StressTestPage({
               <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                 <span className="font-bold text-white font-mono flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  Battery Margin Depleted
+                  Resource Margin Depleted
                 </span>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Navigating the muddy bypass demanded maximum torque from UGV thrusters, leaving only 4% reserve.
+                  {displayResourceImpact}
                 </p>
               </div>
 

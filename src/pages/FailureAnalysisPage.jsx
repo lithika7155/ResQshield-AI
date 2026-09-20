@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useMission } from '../context/MissionContext';
 import { 
   ShieldAlert, 
   AlertOctagon, 
@@ -11,7 +12,7 @@ import {
   Activity, 
   ArrowRight, 
   ArrowLeft, 
-  ArrowDown,
+  ArrowDown, 
   Sparkles, 
   ChevronRight, 
   CheckCircle2, 
@@ -21,11 +22,11 @@ import {
   Flame, 
   Layers, 
   TrendingUp, 
-  TrendingDown,
-  CornerDownRight,
-  Info,
-  Sliders,
-  ExternalLink
+  TrendingDown, 
+  CornerDownRight, 
+  Info, 
+  Sliders, 
+  ExternalLink 
 } from 'lucide-react';
 
 export default function FailureAnalysisPage({ 
@@ -34,20 +35,40 @@ export default function FailureAnalysisPage({
   onBackToStressTest, 
   onBackToDashboard 
 }) {
+  const { 
+    apiPlanId, 
+    apiStressTestId, 
+    apiAnalysisId, 
+    apiAnalysisData, 
+    apiStressData, 
+    runFailureAnalysis, 
+    currentPlan 
+  } = useMission();
+
+  // Auto-run failure analysis if not already fetched
+  useEffect(() => {
+    if (!apiAnalysisData) {
+      runFailureAnalysis().catch(err => {
+        console.warn('[ResQShield API] Failure analysis notice:', err.message);
+      });
+    }
+  }, [apiAnalysisData, runFailureAnalysis]);
+
   // Plan and test metadata
   const meta = {
-    planId: planData?.planId || "RP-2026-CHN-094",
-    stressTestId: "ST-2026-CHN-088",
-    testStatus: "FAILED",
+    planId: apiPlanId || planData?.planId || currentPlan?.id || "RP-2026-CHN-094",
+    stressTestId: apiAnalysisData?.stress_test_id || apiStressTestId || "ST-001",
+    analysisId: apiAnalysisData?.analysis_id || apiAnalysisId || "FA-001",
+    testStatus: apiAnalysisData?.status || apiStressData?.status || "FAILED",
     scenariosTested: 3,
     scenarioNames: ["Route Blocked", "Low Battery", "New Hazard"],
     completedAt: "2026-09-20 12:12:40 IST",
-    originalRisk: 68,
-    simulatedRisk: 91,
-    originalReliability: 82,
-    simulatedReliability: 54,
-    originalTime: 42,
-    simulatedTime: 67
+    originalRisk: apiStressData?.original_risk ?? 68,
+    simulatedRisk: apiStressData?.simulated_risk ?? 91,
+    originalReliability: apiStressData?.original_reliability ?? 82,
+    simulatedReliability: apiStressData?.simulated_reliability ?? 54,
+    originalTime: apiStressData?.original_time ?? 42,
+    simulatedTime: apiStressData?.simulated_time ?? 67
   };
 
   // State for active stage click/inspect in Failure Chain
@@ -121,6 +142,24 @@ export default function FailureAnalysisPage({
       telemetry: "Failure Probability: 46% • Mission Abort Threshold: Exceeded"
     }
   ];
+
+  // Dynamic failure chain from real API if present
+  const displayChainStages = apiAnalysisData?.failure_chain?.length
+    ? apiAnalysisData.failure_chain.map((stageName, idx) => {
+        const fallback = failureChainStages[idx] || {};
+        return {
+          step: idx + 1,
+          id: typeof stageName === 'string' ? stageName.toLowerCase().replace(/\s+/g, '_') : (fallback.id || `stage_${idx+1}`),
+          title: typeof stageName === 'string' ? stageName.toUpperCase() : (fallback.title || `STAGE 0${idx+1}`),
+          summary: fallback.summary || `${stageName} identified in causal propagation chain.`,
+          detail: fallback.detail || `${stageName} triggered cascading operational failure on mission resources.`,
+          impactLevel: fallback.impactLevel || (idx === 0 ? "Critical" : "High"),
+          icon: fallback.icon || AlertOctagon,
+          metric: fallback.metric || (idx === 0 ? "Passability: 0%" : idx === apiAnalysisData.failure_chain.length - 1 ? `Risk: ${meta.simulatedRisk} / Rel: ${meta.simulatedReliability}%` : "Cascading Impact"),
+          telemetry: fallback.telemetry || "Causality propagation confidence: 98.2%"
+        };
+      })
+    : failureChainStages;
 
   const impactedResources = [
     {
@@ -416,17 +455,17 @@ export default function FailureAnalysisPage({
             </h2>
           </div>
           <span className="text-[10px] font-mono px-2.5 py-0.5 rounded bg-crimson-950/80 border border-crimson-500/60 text-crimson-300 font-bold">
-            SEVERITY: CRITICAL
+            SEVERITY: {meta.testStatus}
           </span>
         </div>
 
         {/* Highlighted Cause Statement */}
         <div className="p-3.5 rounded-lg bg-crimson-950/30 border border-crimson-500/30">
           <p className="text-sm font-semibold text-white font-sans">
-            “Critical route became unavailable during the simulation.”
+            “{apiAnalysisData?.root_cause || "Critical route became unavailable during the simulation."}”
           </p>
           <p className="text-xs text-slate-300 font-sans mt-1 leading-relaxed">
-            Primary arterial overpass at Kathipara Junction was inundated by rapid 1.8m surge waters and fallen structural debris, severing the single ingress line.
+            {apiAnalysisData?.operational_impact || "Primary arterial overpass at Kathipara Junction was inundated by rapid 1.8m surge waters and fallen structural debris, severing the single ingress line."}
           </p>
         </div>
 
@@ -451,7 +490,7 @@ export default function FailureAnalysisPage({
           <div className="p-3 rounded-lg bg-black/40 border border-white/5">
             <span className="text-[9px] text-slate-500 uppercase block">ESTIMATED IMPACT</span>
             <strong className="text-crimson-400 mt-0.5 block">
-              +25 min Total Traversal Delay
+              +{meta.simulatedTime - meta.originalTime} min Total Traversal Delay
             </strong>
             <span className="text-[10px] text-slate-400">Forced unmapped 4.2 km detour</span>
           </div>
@@ -481,13 +520,13 @@ export default function FailureAnalysisPage({
             </p>
           </div>
           <span className="text-[11px] font-mono text-crimson-400 font-bold self-start sm:self-auto">
-            6 STAGES • DIRECT CAUSALITY LINK
+            {displayChainStages.length} STAGES • DIRECT CAUSALITY LINK
           </span>
         </div>
 
         {/* Visual Interactive Chain Nodes */}
         <div className="space-y-2.5 max-w-4xl mx-auto">
-          {failureChainStages.map((stage, idx) => {
+          {displayChainStages.map((stage, idx) => {
             const Icon = stage.icon;
             const isSelected = selectedChainIndex === idx;
 
@@ -548,7 +587,7 @@ export default function FailureAnalysisPage({
                 </div>
 
                 {/* Connecting Downward Illuminated Arrow */}
-                {idx < failureChainStages.length - 1 && (
+                {idx < displayChainStages.length - 1 && (
                   <div className="flex justify-center py-0.5">
                     <ArrowDown className="w-4 h-4 text-crimson-500 animate-bounce" />
                   </div>
@@ -569,9 +608,21 @@ export default function FailureAnalysisPage({
             </h2>
           </div>
           <span className="text-[10px] font-mono text-slate-400">
-            5 CRITICAL ASSET VECTORS TRACKED
+            {apiAnalysisData?.affected_resources ? `${apiAnalysisData.affected_resources.length} DETECTED` : "5 CRITICAL ASSET VECTORS TRACKED"}
           </span>
         </div>
+
+        {/* Real API Detected Affected Resources Banner */}
+        {apiAnalysisData?.affected_resources && apiAnalysisData.affected_resources.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-crimson-950/40 border border-crimson-500/30 text-xs font-mono">
+            <span className="text-crimson-300 font-bold">API AFFECTED RESOURCES:</span>
+            {apiAnalysisData.affected_resources.map((resName, i) => (
+              <span key={i} className="px-2.5 py-0.5 rounded bg-crimson-900/60 border border-crimson-500/40 text-crimson-200 font-semibold">
+                ● {resName}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="space-y-2.5">
           {impactedResources.map((res, idx) => {
@@ -638,7 +689,7 @@ export default function FailureAnalysisPage({
             {/* Core Explanation Quote */}
             <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/30 font-sans">
               <p className="text-xs sm:text-sm text-cyan-100 italic leading-relaxed">
-                “The stress test introduced a blocked primary route. The resulting detour increased travel time and resource consumption beyond the available safety margin. This caused a delay in medical response and reduced overall mission reliability.”
+                “{apiAnalysisData?.operational_impact || "The stress test introduced a blocked primary route. The resulting detour increased travel time and resource consumption beyond the available safety margin. This caused a delay in medical response and reduced overall mission reliability."}”
               </p>
             </div>
 
@@ -733,7 +784,7 @@ export default function FailureAnalysisPage({
             <span>7. RECOMMENDED ACTION</span>
           </div>
           <p className="text-sm font-bold text-white font-sans">
-            “Generate an alternative rescue plan using a safer route and updated resource allocation.”
+            “{apiAnalysisData?.recommendation || "Generate an alternative rescue plan using a safer route and updated resource allocation."}”
           </p>
           <p className="text-xs text-slate-300 font-sans">
             Bypasses Kathipara lowlands via the Elevated Coastal Corridor (ECR bypass) with pre-positioned battery trailers.

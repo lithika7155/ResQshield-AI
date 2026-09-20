@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useMission } from '../context/MissionContext';
 import {
   Sparkles,
   CheckCircle2,
@@ -311,9 +312,35 @@ export default function AlternativePlanPage({
   onBackToFailureAnalysis,
   onBackToDashboard,
 }) {
+  const { 
+    apiAltPlanId, 
+    apiAltPlanData, 
+    apiPlanId, 
+    generateAlternative, 
+    rejectPlan, 
+    currentPlan 
+  } = useMission();
+
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedReason, setSelectedChainIndex] = useState(null);
+
+  // Auto-generate alternative plan if not already fetched
+  useEffect(() => {
+    if (!apiAltPlanData) {
+      generateAlternative().catch(err => {
+        console.warn('[ResQShield API] Generate alternative plan notice:', err.message);
+      });
+    }
+  }, [apiAltPlanData, generateAlternative]);
+
+  const origPlanId = apiPlanId || planData?.planId || currentPlan?.id || ORIGINAL.planId;
+  const altPlanId = apiAltPlanData?.alternative_plan_id || apiAltPlanId || ALTERNATIVE.planId;
+  const altRoute = apiAltPlanData?.recommended_route ? `${apiAltPlanData.recommended_route} via Elevated Bypass` : ALTERNATIVE.route;
+  const altRisk = apiAltPlanData?.risk_score ?? ALTERNATIVE.riskScore;
+  const altReliability = apiAltPlanData ? `${apiAltPlanData.reliability}%` : ALTERNATIVE.reliability;
+  const altTravelTime = apiAltPlanData ? `${apiAltPlanData.estimated_time} min` : ALTERNATIVE.travelTime;
+  const altStatus = apiAltPlanData?.status || ALTERNATIVE.status;
 
   const generatedTime = new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -343,16 +370,16 @@ export default function AlternativePlanPage({
           {/* Metadata chips */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
-              ORIGINAL: <span className="text-white font-bold">{ORIGINAL.planId}</span>
+              ORIGINAL: <span className="text-white font-bold">{origPlanId}</span>
             </span>
             <span className="px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono text-emerald-400">
-              ALTERNATIVE: <span className="text-emerald-300 font-bold">{ALTERNATIVE.planId}</span>
+              ALTERNATIVE: <span className="text-emerald-300 font-bold">{altPlanId}</span>
             </span>
             <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
               GENERATED: {generatedTime} IST
             </span>
             <span className="px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-500/40 text-[10px] font-mono text-emerald-400 font-bold uppercase">
-              ✓ ALTERNATIVE GENERATED
+              ✓ {altStatus}
             </span>
           </div>
         </div>
@@ -410,7 +437,7 @@ export default function AlternativePlanPage({
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-crimson-500" />
-                <span className="text-sm font-bold text-slate-300">ORIGINAL PLAN ({ORIGINAL.planId})</span>
+                <span className="text-sm font-bold text-slate-300">ORIGINAL PLAN ({origPlanId})</span>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded bg-crimson-950/60 border border-crimson-600/40 text-crimson-400 uppercase font-bold">
                 FAILED UNDER STRESS
@@ -448,26 +475,26 @@ export default function AlternativePlanPage({
             <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                <span className="text-sm font-bold text-emerald-300">ALTERNATIVE PLAN ({ALTERNATIVE.planId})</span>
+                <span className="text-sm font-bold text-emerald-300">ALTERNATIVE PLAN ({altPlanId})</span>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 uppercase font-bold">
-                ✓ AI RECOMMENDED
+                ✓ {altStatus}
               </span>
             </div>
 
             {/* Route */}
             <div className="p-3 rounded bg-black/50 border border-emerald-500/20">
               <span className="text-emerald-400 text-[10px] uppercase block mb-1">Rescue Corridor</span>
-              <span className="text-white text-xs font-semibold block leading-relaxed">{ALTERNATIVE.route}</span>
+              <span className="text-white text-xs font-semibold block leading-relaxed">{altRoute}</span>
               <span className="text-emerald-400 text-[10px] mt-1 block">✓ Elevated dry grade — 18m ASL</span>
             </div>
 
             {/* Grid metrics */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[
-                { label: 'Risk Score', val: ALTERNATIVE.riskScore + '/100', sub: '−62 pts improved', col: 'text-emerald-400', icon: TrendingDown },
-                { label: 'Reliability', val: ALTERNATIVE.reliability, sub: '+42 pts improved', col: 'text-emerald-400', icon: TrendingUp },
-                { label: 'Est. Rescue Time', val: ALTERNATIVE.travelTime, sub: '−29 min faster', col: 'text-emerald-400', icon: TrendingDown },
+                { label: 'Risk Score', val: altRisk + '/100', sub: '−62 pts improved', col: 'text-emerald-400', icon: TrendingDown },
+                { label: 'Reliability', val: altReliability, sub: '+42 pts improved', col: 'text-emerald-400', icon: TrendingUp },
+                { label: 'Est. Rescue Time', val: altTravelTime, sub: '−29 min faster', col: 'text-emerald-400', icon: TrendingDown },
                 { label: 'Resource Usage', val: ALTERNATIVE.resourceUsage, sub: '−34% conserved', col: 'text-emerald-400', icon: TrendingDown },
                 { label: 'Survivor Reach', val: ALTERNATIVE.survivorReach, sub: '+36% coverage', col: 'text-emerald-400', icon: TrendingUp },
                 { label: 'Hazard Zones', val: ALTERNATIVE.hazardExposure, sub: 'Fully clear', col: 'text-emerald-400', icon: CheckCircle2 },
@@ -592,6 +619,16 @@ export default function AlternativePlanPage({
           <Brain className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-bold text-white uppercase tracking-wider">5. AI REASONING CHAIN — WHY THIS PLAN WAS GENERATED</span>
         </div>
+
+        {/* API Synthesized Rationale Banner */}
+        {apiAltPlanData?.reasoning && (
+          <div className="p-4 mx-5 mt-4 rounded-xl bg-purple-950/30 border border-purple-500/30">
+            <span className="text-[10px] uppercase font-bold text-purple-400 block mb-1">API SYNTHESIZED RATIONALE:</span>
+            <p className="text-xs text-purple-100 font-sans leading-relaxed">
+              "{apiAltPlanData.reasoning}"
+            </p>
+          </div>
+        )}
 
         <div className="p-5 space-y-3">
           {AI_REASONING_STEPS.map((step, i) => {
@@ -745,8 +782,13 @@ export default function AlternativePlanPage({
                 Cancel
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   setShowRejectModal(false);
+                  try {
+                    await rejectPlan(rejectReason || 'Operator requested recalculation', 'Rescue Commander');
+                  } catch (err) {
+                    console.warn('[ResQShield API] Alternative plan rejection warning:', err.message);
+                  }
                   onBackToFailureAnalysis?.();
                 }}
                 className="px-5 py-2 rounded bg-crimson-600 hover:bg-crimson-500 text-white font-bold transition-all"

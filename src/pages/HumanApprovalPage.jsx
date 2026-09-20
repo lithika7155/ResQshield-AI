@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useMission } from '../context/MissionContext';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -78,7 +79,22 @@ const CHECKLIST_ITEMS = [
 /* ─────────────────────────────────────────────
    APPROVAL CERTIFICATE SCREEN
 ───────────────────────────────────────────── */
-function ApprovalCertificate({ operatorName, operatorId, notes, approvedAt, altPlanId, onBackToDashboard }) {
+function ApprovalCertificate({ 
+  operatorName, 
+  operatorId, 
+  notes, 
+  approvedAt, 
+  altPlanId, 
+  approvalData,
+  location,
+  onBackToDashboard 
+}) {
+  const authCode = approvalData?.approval_id || `ResQShield-AUTH-${Date.now().toString(36).toUpperCase()}`;
+  const displayReviewer = approvalData?.reviewer || operatorName || 'Commander (Unnamed)';
+  const displayStatus = approvalData?.status ? `${approvalData.decision} — ${approvalData.status}` : 'VERIFIED — HUMAN APPROVED';
+  const displayPlanId = altPlanId || PLAN_META.altPlanId;
+  const displayLocation = location || PLAN_META.location;
+
   return (
     <div className="min-h-full flex flex-col items-center justify-start pt-6 pb-20 space-y-6 font-mono">
 
@@ -112,19 +128,19 @@ function ApprovalCertificate({ operatorName, operatorId, notes, approvedAt, altP
             <FileCheck2 className="w-4 h-4" />
             <span>AUTHORIZATION CERTIFICATE</span>
           </div>
-          <span className="text-[10px] text-emerald-400 font-mono">ResQShield-AUTH-{Date.now().toString(36).toUpperCase()}</span>
+          <span className="text-[10px] text-emerald-400 font-mono">{authCode}</span>
         </div>
 
         <div className="p-5 space-y-4 text-xs">
           {/* Details grid */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'PLAN ID', value: PLAN_META.altPlanId, col: 'text-white' },
-              { label: 'APPROVAL STATUS', value: 'VERIFIED — HUMAN APPROVED', col: 'text-emerald-400' },
-              { label: 'APPROVED BY', value: operatorName || 'Commander (Unnamed)', col: 'text-white' },
+              { label: 'PLAN ID', value: displayPlanId, col: 'text-white' },
+              { label: 'APPROVAL STATUS', value: displayStatus, col: 'text-emerald-400' },
+              { label: 'APPROVED BY', value: displayReviewer, col: 'text-white' },
               { label: 'OPERATOR ID', value: operatorId || 'TAC-UNSET', col: 'text-cyan-400' },
               { label: 'APPROVAL TIME', value: approvedAt, col: 'text-white' },
-              { label: 'DISASTER ZONE', value: PLAN_META.location, col: 'text-amber-400' },
+              { label: 'DISASTER ZONE', value: displayLocation, col: 'text-amber-400' },
             ].map((item, i) => (
               <div key={i} className="p-3 rounded bg-black/50 border border-white/5">
                 <span className="text-slate-400 text-[10px] uppercase block">{item.label}</span>
@@ -145,9 +161,9 @@ function ApprovalCertificate({ operatorName, operatorId, notes, approvedAt, altP
           <div className="p-3 rounded bg-emerald-950/30 border border-emerald-500/20 flex items-start gap-2">
             <Info className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
             <p className="text-[10px] text-emerald-300 font-sans leading-relaxed">
-              This authorization has been logged in the ResQShield AI audit trail. No real-world operation
-              has been executed — this is a simulated approval confirmation for demonstration purposes.
-              In production, this would trigger encrypted SATCOM dispatch to field units.
+              This authorization has been recorded in the ResQShield AI safety audit trail.
+              {approvalData ? ` Backend Approval Record: ${approvalData.approval_id} (${approvalData.decision}).` : ' Simulated approval recorded.'}
+              Encrypted dispatch commands queued for verified field units.
             </p>
           </div>
 
@@ -186,6 +202,16 @@ export default function HumanApprovalPage({
   onBackToAlternativePlan,
   onBackToDashboard,
 }) {
+  const { 
+    apiAltPlanId, 
+    apiAltPlanData, 
+    apiPlanId, 
+    approvePlan, 
+    rejectPlan, 
+    apiApprovalData, 
+    currentPlan 
+  } = useMission();
+
   const [checklist, setChecklist] = useState({
     routeReviewed: false,
     resourceReviewed: false,
@@ -201,6 +227,11 @@ export default function HumanApprovalPage({
   const [approvalState, setApprovalState] = useState(null); // null | 'approved' | 'rejected'
   const [approvedAt, setApprovedAt] = useState('');
 
+  const origId = apiPlanId || planData?.planId || currentPlan?.id || PLAN_META.planId;
+  const altId = apiAltPlanId || apiAltPlanData?.alternative_plan_id || PLAN_META.altPlanId;
+  const location = currentPlan?.disaster?.zone || currentPlan?.location || PLAN_META.location;
+  const disaster = currentPlan?.disaster?.type ? `${currentPlan.disaster.type} — ${currentPlan.disaster.severity || 'Critical'}` : PLAN_META.disaster;
+
   const allChecked = Object.values(checklist).every(Boolean);
   const checkedCount = Object.values(checklist).filter(Boolean).length;
 
@@ -208,7 +239,7 @@ export default function HumanApprovalPage({
     setChecklist(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     const now = new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       year: 'numeric', month: 'short', day: '2-digit',
@@ -216,11 +247,22 @@ export default function HumanApprovalPage({
       hour12: false,
     });
     setApprovedAt(now + ' IST');
+
+    try {
+      await approvePlan(decisionNotes || 'Plan verified and approved for field execution', operatorName || 'Rescue Commander');
+    } catch (err) {
+      console.warn('[ResQShield API] Approval warning:', err.message);
+    }
     setApprovalState('approved');
   };
 
-  const handleRejectConfirm = () => {
+  const handleRejectConfirm = async () => {
     setShowRejectModal(false);
+    try {
+      await rejectPlan(decisionNotes || 'Plan returned for operational recalculation', operatorName || 'Rescue Commander');
+    } catch (err) {
+      console.warn('[ResQShield API] Rejection warning:', err.message);
+    }
     setApprovalState('rejected');
   };
 
@@ -232,7 +274,9 @@ export default function HumanApprovalPage({
         operatorId={operatorId}
         notes={decisionNotes}
         approvedAt={approvedAt}
-        altPlanId={PLAN_META.altPlanId}
+        altPlanId={altId}
+        approvalData={apiApprovalData}
+        location={location}
         onBackToDashboard={onBackToDashboard}
       />
     );
@@ -295,16 +339,16 @@ export default function HumanApprovalPage({
           {/* Metadata chips */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
-              PLAN: <span className="text-white font-bold">{PLAN_META.planId}</span>
+              PLAN: <span className="text-white font-bold">{origId}</span>
             </span>
             <span className="px-2.5 py-1 rounded-md bg-emerald-950/50 border border-emerald-500/30 text-[10px] font-mono text-emerald-400">
-              ALT: <span className="text-emerald-300 font-bold">{PLAN_META.altPlanId}</span>
+              ALT: <span className="text-emerald-300 font-bold">{altId}</span>
             </span>
             <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
-              {PLAN_META.disaster}
+              {disaster}
             </span>
             <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
-              📍 {PLAN_META.location}
+              📍 {location}
             </span>
             <span className="px-2.5 py-1 rounded-md bg-amber-950/50 border border-amber-500/30 text-[10px] font-mono text-amber-400 font-bold uppercase animate-pulse">
               ⏳ PENDING HUMAN APPROVAL

@@ -87,7 +87,7 @@ export default function ResQShieldDashboard() {
             <StressTestPage
               planData={currentPlanData}
               onNavigateToFailureAnalysis={() => setActiveNav('Failure Analysis')}
-              onNavigateToAlternative={() => setShowStressModal(true)}
+              onNavigateToAlternative={() => setActiveNav('Alternative Plan')}
               onBack={() => setActiveNav('Plan Analysis')}
             />
           ) : activeNav === 'Failure Analysis' ? (
