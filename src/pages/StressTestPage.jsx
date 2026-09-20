@@ -145,6 +145,7 @@ const FAILURE_CHAIN = [
 export default function StressTestPage({ 
   planData, 
   onNavigateToAlternative, 
+  onNavigateToFailureAnalysis,
   onBack 
 }) {
   // Baseline plan data
@@ -908,24 +909,34 @@ export default function StressTestPage({
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
               {/* Secondary Action */}
               <button
                 type="button"
                 onClick={handleModifyScenarios}
-                className="px-4 py-2.5 rounded-xl bg-black/60 hover:bg-white/10 border border-white/15 text-slate-300 font-mono text-xs transition-colors"
+                className="px-3.5 py-2.5 rounded-xl bg-black/60 hover:bg-white/10 border border-white/15 text-slate-300 font-mono text-xs transition-colors"
               >
                 Modify Scenarios
+              </button>
+
+              {/* Failure Analysis Button */}
+              <button
+                type="button"
+                onClick={onNavigateToFailureAnalysis}
+                className="px-4 py-2.5 rounded-xl bg-crimson-950/80 hover:bg-crimson-900/80 border border-crimson-500/50 text-crimson-300 font-mono font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5"
+              >
+                <AlertOctagon className="w-3.5 h-3.5 text-crimson-400" />
+                <span>Failure Analysis →</span>
               </button>
 
               {/* Primary Action Button */}
               <button
                 type="button"
                 onClick={onNavigateToAlternative}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-crimson-600 via-crimson-700 to-crimson-800 hover:from-crimson-500 hover:via-crimson-600 hover:to-crimson-700 text-white font-mono font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-crimson-glow flex items-center gap-2 group active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-crimson-600 via-crimson-700 to-crimson-800 hover:from-crimson-500 hover:via-crimson-600 hover:to-crimson-700 text-white font-mono font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-crimson-glow flex items-center gap-2 group active:scale-95"
               >
                 <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition-transform" />
-                <span>Generate Alternative Plan →</span>
+                <span>Alternative Plan →</span>
               </button>
             </div>
 

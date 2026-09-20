@@ -14,6 +14,7 @@ import HumanApprovalModal from '../components/modals/HumanApprovalModal';
 import RescuePlanningPage from './RescuePlanningPage';
 import PlanAnalysisPage from './PlanAnalysisPage';
 import StressTestPage from './StressTestPage';
+import FailureAnalysisPage from './FailureAnalysisPage';
 
 export default function ResQShieldDashboard() {
   const [activeNav, setActiveNav] = useState('Home');
@@ -83,8 +84,16 @@ export default function ResQShieldDashboard() {
           ) : activeNav === 'Stress Testing' ? (
             <StressTestPage
               planData={currentPlanData}
+              onNavigateToFailureAnalysis={() => setActiveNav('Failure Analysis')}
               onNavigateToAlternative={() => setShowStressModal(true)}
               onBack={() => setActiveNav('Plan Analysis')}
+            />
+          ) : activeNav === 'Failure Analysis' ? (
+            <FailureAnalysisPage
+              planData={currentPlanData}
+              onNavigateToAlternative={() => setShowStressModal(true)}
+              onBackToStressTest={() => setActiveNav('Stress Testing')}
+              onBackToDashboard={() => setActiveNav('Home')}
             />
           ) : (
             <>
